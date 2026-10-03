@@ -97,7 +97,8 @@ $("test").addEventListener("click", async () => {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 16,
+        // 推理模型（如 deepseek 系列）的 reasoning 也占 token，给足余量
+        max_tokens: 512,
         messages: [{ role: "user", content: "hello" }],
       }),
     });
@@ -114,7 +115,9 @@ $("test").addEventListener("click", async () => {
 
     let reply = null;
     try {
-      reply = JSON.parse(text).choices?.[0]?.message?.content?.trim();
+      const msg = JSON.parse(text).choices?.[0]?.message;
+      // 推理模型可能把输出放在 reasoning_content 里，content 为空时回退读它
+      reply = msg?.content?.trim() || msg?.reasoning_content?.trim();
     } catch {
       // 不是合法 JSON
     }
