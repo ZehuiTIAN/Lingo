@@ -89,12 +89,16 @@ async function handleQuery(port, payload, signal) {
     }
   };
 
+  const t0 = performance.now();
+
   const cfg = await chrome.storage.local.get([
     "baseUrl",
     "apiKey",
     "model",
     "systemPrompt",
   ]);
+
+  const t1 = performance.now(); // 配置读取完成
 
   if (!cfg.apiKey) {
     post({
@@ -142,10 +146,26 @@ async function handleQuery(port, payload, signal) {
     return;
   }
 
+  const t2 = performance.now(); // 收到响应头（首字节），服务器开始流式输出
+
   // 解析 SSE：每行形如 "data: {...}"，结束时为 "data: [DONE]"
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let tFirst = null; // 第一个内容 token 到达时间
+
+  const finish = () => {
+    const now = performance.now();
+    const stats = {
+      configMs: Math.round(t1 - t0),
+      ttfbMs: Math.round(t2 - t1),
+      firstTokenMs: tFirst == null ? null : Math.round(tFirst - t2),
+      streamMs: tFirst == null ? null : Math.round(now - tFirst),
+      totalMs: Math.round(now - t0),
+    };
+    console.log("[lingo] timing", stats);
+    post({ type: "done", stats });
+  };
 
   try {
     for (;;) {
@@ -161,19 +181,22 @@ async function handleQuery(port, payload, signal) {
         if (!trimmed.startsWith("data:")) continue;
         const data = trimmed.slice(5).trim();
         if (data === "[DONE]") {
-          post({ type: "done" });
+          finish();
           return;
         }
         try {
           const json = JSON.parse(data);
           const delta = json.choices?.[0]?.delta?.content;
-          if (delta) post({ type: "chunk", delta });
+          if (delta) {
+            if (tFirst === null) tFirst = performance.now();
+            post({ type: "chunk", delta });
+          }
         } catch {
           // 忽略不完整的 JSON 块
         }
       }
     }
-    post({ type: "done" });
+    finish();
   } catch (e) {
     if (e.name !== "AbortError") {
       post({ type: "error", message: `读取流时出错：${e.message}` });

@@ -207,15 +207,23 @@
     currentPort = chrome.runtime.connect({ name: "lingo-query" });
     let answer = "";
     lastAnswer = "";
+    let renderMs = 0;
+    let renderCount = 0;
     currentPort.onMessage.addListener((msg) => {
       if (msg.type === "chunk") {
         answer += msg.delta;
         lastAnswer = answer;
+        const r0 = performance.now();
         panelBody.innerHTML = renderMarkdown(answer);
+        renderMs += performance.now() - r0;
+        renderCount++;
         setStatus("");
         panelBody.scrollTop = panelBody.scrollHeight;
       } else if (msg.type === "done") {
-        setStatus(answer ? "" : "（没有收到内容）");
+        setStatus(answer ? formatStats(msg.stats) : "（没有收到内容）");
+        console.log(
+          `[lingo] 本地渲染累计 ${Math.round(renderMs)}ms / ${renderCount} 次`
+        );
       } else if (msg.type === "error") {
         setStatus("");
         panelBody.textContent = `⚠️ ${msg.message}`;
@@ -245,6 +253,13 @@
       el.textContent = text;
       el.style.display = text ? "block" : "none";
     }
+  }
+
+  function formatStats(s) {
+    if (!s) return "";
+    const fmt = (ms) =>
+      ms == null ? "—" : ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
+    return `首字节 ${fmt(s.ttfbMs)} · 首字 ${fmt(s.firstTokenMs)} · 生成 ${fmt(s.streamMs)} · 共 ${fmt(s.totalMs)}`;
   }
 
   function closeCurrentPort() {
