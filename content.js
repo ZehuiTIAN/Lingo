@@ -11,6 +11,19 @@
   let currentPort = null;
   let lastAnswer = "";
 
+  // 插件重载/更新后，旧页面里残留的 content script 会失效：
+  // 监听器还在，但一调 chrome.runtime API 就抛 "Extension context invalidated"
+  function contextAlive() {
+    try {
+      return !!chrome.runtime?.id;
+    } catch {
+      return false;
+    }
+  }
+
+  const CONTEXT_DEAD_HINT =
+    "⚠️ 插件刚刚重载过，本页面里的旧脚本已失效。请刷新页面（F5）后再试。";
+
   // ---------- 极简 Markdown 渲染 ----------
   // 先整体 HTML 转义，再做 Markdown → HTML 转换，模型输出里的任何 HTML 都只会显示为文本
 
@@ -203,8 +216,19 @@
     }
     panel.style.display = "flex";
 
-    // 发起查询
-    currentPort = chrome.runtime.connect({ name: "lingo-query" });
+    // 发起查询（先确认扩展上下文还活着）
+    if (!contextAlive()) {
+      panelBody.textContent = CONTEXT_DEAD_HINT;
+      setStatus("");
+      return;
+    }
+    try {
+      currentPort = chrome.runtime.connect({ name: "lingo-query" });
+    } catch {
+      panelBody.textContent = CONTEXT_DEAD_HINT;
+      setStatus("");
+      return;
+    }
     let answer = "";
     lastAnswer = "";
     let renderMs = 0;
@@ -282,6 +306,7 @@
   document.addEventListener("mouseup", (e) => {
     // 略等一拍，等浏览器完成选区更新
     setTimeout(() => {
+      if (!contextAlive()) return; // 插件已重载，旧脚本停止响应
       const sel = window.getSelection();
       if (!sel || sel.isCollapsed) {
         hideButton();
