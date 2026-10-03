@@ -60,6 +60,11 @@
     }
     button.secondary:hover { background: #f1f5f9; }
     #status { font-size: 13px; color: #16a34a; }
+    #testResult { font-size: 13px; }
+    #testResult.ok { color: #16a34a; }
+    #testResult.fail { color: #dc2626; }
+    #testResult.pending { color: #64748b; }
+    button:disabled { opacity: 0.6; cursor: default; }
   </style>
 </head>
 <body>
@@ -74,6 +79,11 @@
 
   <label for="model">模型 <span class="hint">例如 gpt-4o-mini、gpt-4o，或你的服务商提供的模型名</span></label>
   <input type="text" id="model" placeholder="gpt-4o-mini" />
+
+  <div class="row" style="margin-top: 12px;">
+    <button id="test" class="secondary" type="button">测试连接</button>
+    <span id="testResult"></span>
+  </div>
 
   <label for="systemPrompt">
     System Prompt

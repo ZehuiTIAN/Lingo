@@ -61,4 +61,82 @@ $("resetPrompt").addEventListener("click", () => {
   $("systemPrompt").value = DEFAULT_SYSTEM_PROMPT;
 });
 
+// ---- 测试连接 ----
+// 用当前表单里的值（不要求先保存）发一条最短的非流式请求，验证 Base URL / Key / 模型
+
+function showTestResult(text, kind) {
+  const el = $("testResult");
+  el.textContent = text;
+  el.className = kind || "";
+}
+
+$("test").addEventListener("click", async () => {
+  const baseUrl = ($("baseUrl").value.trim() || DEFAULTS.baseUrl).replace(
+    /\/+$/,
+    ""
+  );
+  const apiKey = $("apiKey").value.trim();
+  const model = $("model").value.trim() || DEFAULTS.model;
+
+  if (!apiKey) {
+    showTestResult("请先填写 API Key", "fail");
+    return;
+  }
+
+  const btn = $("test");
+  btn.disabled = true;
+  showTestResult("测试中…", "pending");
+  const t0 = performance.now();
+
+  try {
+    const resp = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 16,
+        messages: [{ role: "user", content: "hello" }],
+      }),
+    });
+    const ms = Math.round(performance.now() - t0);
+    const text = await resp.text();
+
+    if (!resp.ok) {
+      showTestResult(
+        `✗ HTTP ${resp.status}：${text.slice(0, 200)}`,
+        "fail"
+      );
+      return;
+    }
+
+    let reply = null;
+    try {
+      reply = JSON.parse(text).choices?.[0]?.message?.content?.trim();
+    } catch {
+      // 不是合法 JSON
+    }
+    if (reply) {
+      showTestResult(
+        `✓ 连接成功（${ms}ms），模型回复：${reply.slice(0, 80)}`,
+        "ok"
+      );
+    } else {
+      showTestResult(
+        `✗ 请求成功但解析不到回复内容：${text.slice(0, 200)}`,
+        "fail"
+      );
+    }
+  } catch (e) {
+    showTestResult(
+      `✗ 网络请求失败：${e.message}（检查 Base URL 是否可访问）`,
+      "fail"
+    );
+  } finally {
+    btn.disabled = false;
+  }
+});
+
 restore();
