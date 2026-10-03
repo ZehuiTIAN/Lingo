@@ -37,11 +37,13 @@ async function restore() {
     "apiKey",
     "model",
     "systemPrompt",
+    "thinking",
   ]);
   $("baseUrl").value = cfg.baseUrl ?? "";
   $("apiKey").value = cfg.apiKey ?? "";
   $("model").value = cfg.model ?? "";
   $("systemPrompt").value = cfg.systemPrompt ?? DEFAULT_SYSTEM_PROMPT;
+  $("thinking").value = cfg.thinking ?? "default";
 }
 
 async function save() {
@@ -50,10 +52,18 @@ async function save() {
     apiKey: $("apiKey").value.trim(),
     model: $("model").value.trim() || DEFAULTS.model,
     systemPrompt: $("systemPrompt").value.trim() || DEFAULTS.systemPrompt,
+    thinking: $("thinking").value,
   });
   const status = $("status");
   status.textContent = "✓ 已保存";
   setTimeout(() => (status.textContent = ""), 2000);
+}
+
+// 思考模式 → 请求参数（DeepSeek 推理模型专用；default 时不带任何额外参数）
+function thinkingParams(mode) {
+  if (mode === "low") return { reasoning_effort: "low" };
+  if (mode === "off") return { thinking: { type: "disabled" } };
+  return {};
 }
 
 $("save").addEventListener("click", save);
@@ -100,6 +110,7 @@ $("test").addEventListener("click", async () => {
         // 推理模型（如 deepseek 系列）的 reasoning 也占 token，给足余量
         max_tokens: 512,
         messages: [{ role: "user", content: "hello" }],
+        ...thinkingParams($("thinking").value),
       }),
     });
     const ms = Math.round(performance.now() - t0);

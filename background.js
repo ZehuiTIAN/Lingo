@@ -96,6 +96,7 @@ async function handleQuery(port, payload, signal) {
     "apiKey",
     "model",
     "systemPrompt",
+    "thinking",
   ]);
 
   const t1 = performance.now(); // 配置读取完成
@@ -128,6 +129,12 @@ async function handleQuery(port, payload, signal) {
           { role: "system", content: cfg.systemPrompt || DEFAULTS.systemPrompt },
           { role: "user", content: userMessage },
         ],
+        // 思考模式（DeepSeek 等推理模型专用）：low → reasoning_effort，off → thinking disabled
+        ...(cfg.thinking === "low"
+          ? { reasoning_effort: "low" }
+          : cfg.thinking === "off"
+            ? { thinking: { type: "disabled" } }
+            : {}),
       }),
     });
   } catch (e) {

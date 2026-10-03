@@ -26,7 +26,7 @@
       color: #94a3b8;
       margin-left: 6px;
     }
-    input[type="text"], input[type="password"], textarea {
+    input[type="text"], input[type="password"], textarea, select {
       width: 100%;
       box-sizing: border-box;
       padding: 8px 10px;
@@ -79,6 +79,16 @@
 
   <label for="model">模型 <span class="hint">例如 gpt-4o-mini、gpt-4o，或你的服务商提供的模型名</span></label>
   <input type="text" id="model" placeholder="gpt-4o-mini" />
+
+  <label for="thinking">
+    思考模式
+    <span class="hint">仅对 DeepSeek 等推理模型有效；查词场景建议「关闭」，速度最快</span>
+  </label>
+  <select id="thinking">
+    <option value="default">默认（由模型/服务商决定）</option>
+    <option value="low">低（reasoning_effort: low）</option>
+    <option value="off">关闭（thinking: disabled）</option>
+  </select>
 
   <div class="row" style="margin-top: 12px;">
     <button id="test" class="secondary" type="button">测试连接</button>
