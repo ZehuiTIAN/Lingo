@@ -1,0 +1,238 @@
+// Lingo content script
+// 职责：监听划选 → 显示浮动按钮 → 打开回答面板 → 通过 Port 接收流式回答
+
+(() => {
+  if (window.__lingoLoaded) return;
+  window.__lingoLoaded = true;
+
+  let askButton = null;
+  let panel = null;
+  let panelBody = null;
+  let currentPort = null;
+
+  // ---------- 浮动「问 AI」按钮 ----------
+
+  function ensureButton() {
+    if (askButton) return askButton;
+    askButton = document.createElement("button");
+    askButton.className = "lingo-ask-btn";
+    askButton.textContent = "问 AI";
+    // mousedown 阻止默认行为，避免点击按钮时选区被清空
+    askButton.addEventListener("mousedown", (e) => e.preventDefault());
+    askButton.addEventListener("click", () => {
+      const sel = window.getSelection();
+      if (sel && sel.toString().trim()) {
+        openPanel(sel.toString().trim(), getContext(sel));
+      }
+      hideButton();
+    });
+    document.documentElement.appendChild(askButton);
+    return askButton;
+  }
+
+  function showButton(rect) {
+    const btn = ensureButton();
+    const top = rect.bottom + 8;
+    let left = rect.left + rect.width / 2;
+    btn.style.top = `${Math.max(4, top)}px`;
+    // 粗略居中，防止超出右边界
+    left = Math.min(Math.max(8, left - 30), window.innerWidth - 80);
+    btn.style.left = `${left}px`;
+    btn.style.display = "block";
+  }
+
+  function hideButton() {
+    if (askButton) askButton.style.display = "none";
+  }
+
+  // ---------- 上下文提取 ----------
+
+  function getContext(sel) {
+    let node = sel.anchorNode;
+    if (!node) return "";
+    const el = node.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+    const block =
+      el?.closest("p, article, section, li, td, blockquote, div") ||
+      document.body;
+    let text = (block.innerText || "").replace(/\s+/g, " ").trim();
+
+    const LIMIT = 1200;
+    if (text.length <= LIMIT) return text;
+
+    // 太长时以划选内容为中心截取
+    const selected = sel.toString().trim();
+    const idx = text.indexOf(selected);
+    if (idx === -1) return `${text.slice(0, LIMIT)}…`;
+    const start = Math.max(0, idx - Math.floor((LIMIT - selected.length) / 2));
+    const end = Math.min(text.length, start + LIMIT);
+    return `${start > 0 ? "…" : ""}${text.slice(start, end)}${end < text.length ? "…" : ""}`;
+  }
+
+  // ---------- 回答面板 ----------
+
+  function ensurePanel() {
+    if (panel) return;
+
+    panel = document.createElement("div");
+    panel.className = "lingo-panel";
+    panel.innerHTML = `
+      <div class="lingo-panel-header">
+        <span class="lingo-panel-title" title=""></span>
+        <span class="lingo-panel-actions">
+          <button class="lingo-icon-btn lingo-copy" title="复制回答">复制</button>
+          <button class="lingo-icon-btn lingo-close" title="关闭 (Esc)">✕</button>
+        </span>
+      </div>
+      <div class="lingo-panel-body"></div>
+      <div class="lingo-panel-status">思考中…</div>
+    `;
+    document.documentElement.appendChild(panel);
+
+    panelBody = panel.querySelector(".lingo-panel-body");
+    panel.querySelector(".lingo-close").addEventListener("click", closePanel);
+    panel.querySelector(".lingo-copy").addEventListener("click", () => {
+      navigator.clipboard.writeText(panelBody.textContent || "").catch(() => {});
+    });
+
+    // 阻止面板内的划选/点击事件冒泡到页面，避免误触"点击外部关闭"
+    panel.addEventListener("mouseup", (e) => e.stopPropagation());
+    panel.addEventListener("mousedown", (e) => e.stopPropagation());
+  }
+
+  function openPanel(selection, context) {
+    ensurePanel();
+    closeCurrentPort();
+
+    panel.querySelector(".lingo-panel-title").textContent =
+      selection.length > 40 ? `${selection.slice(0, 40)}…` : selection;
+    panel.querySelector(".lingo-panel-title").title = selection;
+    panelBody.textContent = "";
+    setStatus("思考中…");
+
+    // 定位：跟随当前选区，否则居中
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && sel.toString().trim()) {
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      positionPanel(rect);
+    } else {
+      panel.style.top = "80px";
+      panel.style.left = `${Math.max(16, (window.innerWidth - panel.offsetWidth) / 2)}px`;
+    }
+    panel.style.display = "flex";
+
+    // 发起查询
+    currentPort = chrome.runtime.connect({ name: "lingo-query" });
+    let answer = "";
+    currentPort.onMessage.addListener((msg) => {
+      if (msg.type === "chunk") {
+        answer += msg.delta;
+        panelBody.textContent = answer;
+        setStatus("");
+        panelBody.scrollTop = panelBody.scrollHeight;
+      } else if (msg.type === "done") {
+        setStatus(answer ? "" : "（没有收到内容）");
+      } else if (msg.type === "error") {
+        setStatus("");
+        panelBody.textContent = `⚠️ ${msg.message}`;
+      }
+    });
+    currentPort.onDisconnect.addListener(() => {
+      currentPort = null;
+    });
+    currentPort.postMessage({ type: "query", payload: { selection, context } });
+  }
+
+  function positionPanel(rect) {
+    const PANEL_W = 420;
+    let top = rect.bottom + 10;
+    let left = rect.left;
+    if (top + 300 > window.innerHeight) {
+      top = Math.max(10, rect.top - 310); // 下方放不下就放上方
+    }
+    left = Math.min(Math.max(10, left), window.innerWidth - PANEL_W - 10);
+    panel.style.top = `${top}px`;
+    panel.style.left = `${left}px`;
+  }
+
+  function setStatus(text) {
+    const el = panel?.querySelector(".lingo-panel-status");
+    if (el) {
+      el.textContent = text;
+      el.style.display = text ? "block" : "none";
+    }
+  }
+
+  function closeCurrentPort() {
+    if (currentPort) {
+      try {
+        currentPort.disconnect();
+      } catch {}
+      currentPort = null;
+    }
+  }
+
+  function closePanel() {
+    closeCurrentPort();
+    if (panel) panel.style.display = "none";
+  }
+
+  // ---------- 事件监听 ----------
+
+  // 划选结束 → 显示按钮
+  document.addEventListener("mouseup", (e) => {
+    // 略等一拍，等浏览器完成选区更新
+    setTimeout(() => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed) {
+        hideButton();
+        return;
+      }
+      const text = sel.toString().trim();
+      // 忽略过短选择、输入框内的选择、以及我们自己面板里的选择
+      if (text.length < 2) {
+        hideButton();
+        return;
+      }
+      const anchorEl =
+        sel.anchorNode?.nodeType === Node.TEXT_NODE
+          ? sel.anchorNode.parentElement
+          : sel.anchorNode;
+      if (anchorEl?.closest("input, textarea, [contenteditable], .lingo-panel")) {
+        hideButton();
+        return;
+      }
+      if (panel?.contains(e.target)) return;
+
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) return;
+      showButton(rect);
+    }, 10);
+  });
+
+  // 点击页面其他地方 → 收起按钮
+  document.addEventListener("mousedown", (e) => {
+    if (askButton && !askButton.contains(e.target)) hideButton();
+    if (panel && panel.style.display !== "none" && !panel.contains(e.target)) {
+      // 点击面板外部不自动关闭面板（用户可能想边读边对照），只关按钮
+    }
+  });
+
+  // Esc 关闭面板
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      hideButton();
+      closePanel();
+    }
+  });
+
+  // 右键菜单触发
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.type === "lingo:open") {
+      const sel = window.getSelection();
+      if (sel && sel.toString().trim()) {
+        openPanel(sel.toString().trim(), getContext(sel));
+        hideButton();
+      }
+    }
+  });
+})();

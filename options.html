@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>Lingo 设置</title>
+  <style>
+    body {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+      font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 14px;
+      color: #1f2937;
+      background: #f8fafc;
+    }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .subtitle { color: #64748b; margin: 0 0 24px; }
+    label {
+      display: block;
+      font-weight: 600;
+      margin: 20px 0 6px;
+    }
+    .hint {
+      font-weight: 400;
+      font-size: 12px;
+      color: #94a3b8;
+      margin-left: 6px;
+    }
+    input[type="text"], input[type="password"], textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-family: inherit;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #fff;
+    }
+    textarea {
+      min-height: 220px;
+      resize: vertical;
+      line-height: 1.6;
+      font-family: ui-monospace, Consolas, monospace;
+    }
+    .row { display: flex; gap: 12px; align-items: center; margin-top: 24px; }
+    button {
+      padding: 8px 20px;
+      font-size: 14px;
+      color: #fff;
+      background: #2563eb;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover { background: #1d4ed8; }
+    button.secondary {
+      color: #475569;
+      background: #fff;
+      border: 1px solid #cbd5e1;
+    }
+    button.secondary:hover { background: #f1f5f9; }
+    #status { font-size: 13px; color: #16a34a; }
+  </style>
+</head>
+<body>
+  <h1>Lingo 设置</h1>
+  <p class="subtitle">所有配置只保存在本机浏览器里，不会上传到任何地方。</p>
+
+  <label for="baseUrl">Base URL <span class="hint">兼容 OpenAI 格式的接口地址，一般填到 /v1 为止</span></label>
+  <input type="text" id="baseUrl" placeholder="https://api.openai.com/v1" />
+
+  <label for="apiKey">API Key</label>
+  <input type="password" id="apiKey" placeholder="sk-..." />
+
+  <label for="model">模型 <span class="hint">例如 gpt-4o-mini、gpt-4o，或你的服务商提供的模型名</span></label>
+  <input type="text" id="model" placeholder="gpt-4o-mini" />
+
+  <label for="systemPrompt">
+    System Prompt
+    <span class="hint">决定 AI 的回答风格——把它改成你习惯的回答格式</span>
+  </label>
+  <textarea id="systemPrompt"></textarea>
+
+  <div class="row">
+    <button id="save">保存</button>
+    <button id="resetPrompt" class="secondary" type="button">恢复默认 Prompt</button>
+    <span id="status"></span>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

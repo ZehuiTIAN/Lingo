@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Lingo — 划词问 AI",
+  "version": "0.1.0",
+  "description": "划选英文，一键问 AI：上下文含义、常见用法、例句。",
+  "permissions": ["contextMenus", "storage", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html"
+}
