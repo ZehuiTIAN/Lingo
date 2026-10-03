@@ -9,6 +9,89 @@
   let panel = null;
   let panelBody = null;
   let currentPort = null;
+  let lastAnswer = "";
+
+  // ---------- 极简 Markdown 渲染 ----------
+  // 先整体 HTML 转义，再做 Markdown → HTML 转换，模型输出里的任何 HTML 都只会显示为文本
+
+  function escapeHtml(s) {
+    return s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function renderMarkdown(src) {
+    let text = escapeHtml(src);
+
+    // 代码内容先提取为占位符，避免其中的字符被行内规则误转
+    const stash = [];
+    const keep = (html) => {
+      stash.push(html);
+      return `${stash.length - 1}`;
+    };
+
+    // 代码块 ```...```（流式输出时可能还没闭合，允许匹配到结尾）
+    text = text.replace(/```[^\n]*\n?([\s\S]*?)(?:```|$)/g, (_, code) =>
+      keep(`<pre><code>${code.replace(/\n$/, "")}</code></pre>`)
+    );
+    // 行内代码
+    text = text.replace(/`([^`\n]+)`/g, (_, code) => keep(`<code>${code}</code>`));
+
+    // 行内样式：先加粗后斜体
+    text = text.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    text = text.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+
+    // 块级元素：逐行处理
+    const out = [];
+    let list = null; // "ul" | "ol" | null
+    const closeList = () => {
+      if (list) {
+        out.push(`</${list}>`);
+        list = null;
+      }
+    };
+
+    for (const line of text.split("\n")) {
+      let m;
+      if ((m = line.match(/^(\d+)$/)) && stash[+m[1]]?.startsWith("<pre")) {
+        closeList();
+        out.push(m[1]); // 代码块占位符保持为独立块，不包 <p>
+      } else if ((m = line.match(/^(#{1,4})\s+(.*)$/))) {
+        closeList();
+        const level = Math.min(m[1].length, 4);
+        out.push(`<h${level}>${m[2]}</h${level}>`);
+      } else if ((m = line.match(/^\s*[-*•]\s+(.*)$/))) {
+        if (list !== "ul") {
+          closeList();
+          out.push("<ul>");
+          list = "ul";
+        }
+        out.push(`<li>${m[1]}</li>`);
+      } else if ((m = line.match(/^\s*\d+[.、)]\s+(.*)$/))) {
+        if (list !== "ol") {
+          closeList();
+          out.push("<ol>");
+          list = "ol";
+        }
+        out.push(`<li>${m[1]}</li>`);
+      } else if (line.trim() === "") {
+        closeList();
+      } else {
+        closeList();
+        out.push(`<p>${line}</p>`);
+      }
+    }
+    closeList();
+
+    // 还原代码占位符
+    let html = out.join("");
+    stash.forEach((code, i) => {
+      html = html.replace(`${i}`, code);
+    });
+    return html;
+  }
 
   // ---------- 浮动「问 AI」按钮 ----------
 
@@ -91,7 +174,7 @@
     panelBody = panel.querySelector(".lingo-panel-body");
     panel.querySelector(".lingo-close").addEventListener("click", closePanel);
     panel.querySelector(".lingo-copy").addEventListener("click", () => {
-      navigator.clipboard.writeText(panelBody.textContent || "").catch(() => {});
+      navigator.clipboard.writeText(lastAnswer).catch(() => {});
     });
 
     // 阻止面板内的划选/点击事件冒泡到页面，避免误触"点击外部关闭"
@@ -123,10 +206,12 @@
     // 发起查询
     currentPort = chrome.runtime.connect({ name: "lingo-query" });
     let answer = "";
+    lastAnswer = "";
     currentPort.onMessage.addListener((msg) => {
       if (msg.type === "chunk") {
         answer += msg.delta;
-        panelBody.textContent = answer;
+        lastAnswer = answer;
+        panelBody.innerHTML = renderMarkdown(answer);
         setStatus("");
         panelBody.scrollTop = panelBody.scrollHeight;
       } else if (msg.type === "done") {

@@ -84,9 +84,81 @@
   flex: 1;
   padding: 12px 14px;
   overflow-y: auto;
-  white-space: pre-wrap;
   word-break: break-word;
   user-select: text;
+}
+
+/* ---- Markdown 渲染结果 ---- */
+
+.lingo-panel-body p {
+  margin: 0 0 8px;
+}
+
+.lingo-panel-body h1,
+.lingo-panel-body h2,
+.lingo-panel-body h3,
+.lingo-panel-body h4 {
+  margin: 12px 0 6px;
+  font-weight: 600;
+  color: #0f172a;
+  line-height: 1.4;
+}
+
+.lingo-panel-body h1 { font-size: 17px; }
+.lingo-panel-body h2 { font-size: 16px; }
+.lingo-panel-body h3 { font-size: 15px; }
+.lingo-panel-body h4 { font-size: 14px; }
+
+.lingo-panel-body h1:first-child,
+.lingo-panel-body h2:first-child,
+.lingo-panel-body h3:first-child,
+.lingo-panel-body h4:first-child,
+.lingo-panel-body p:first-child {
+  margin-top: 0;
+}
+
+.lingo-panel-body ul,
+.lingo-panel-body ol {
+  margin: 4px 0 10px;
+  padding-left: 22px;
+}
+
+.lingo-panel-body li {
+  margin: 3px 0;
+}
+
+.lingo-panel-body li::marker {
+  color: #94a3b8;
+}
+
+.lingo-panel-body strong {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.lingo-panel-body code {
+  padding: 1px 5px;
+  font-size: 12.5px;
+  font-family: ui-monospace, Consolas, "Courier New", monospace;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+}
+
+.lingo-panel-body pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.lingo-panel-body pre code {
+  padding: 0;
+  background: transparent;
+  border: none;
+  white-space: pre;
 }
 
 .lingo-panel-status {
