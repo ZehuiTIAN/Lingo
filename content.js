@@ -182,6 +182,9 @@
       </div>
       <div class="lingo-panel-body"></div>
       <div class="lingo-panel-status">思考中…</div>
+      <div class="lingo-resize lingo-resize-e" data-dir="e"></div>
+      <div class="lingo-resize lingo-resize-s" data-dir="s"></div>
+      <div class="lingo-resize lingo-resize-se" data-dir="se"></div>
     `;
     document.documentElement.appendChild(panel);
 
@@ -200,6 +203,70 @@
     // 阻止面板内的划选/点击事件冒泡到页面，避免误触"点击外部关闭"
     panel.addEventListener("mouseup", (e) => e.stopPropagation());
     panel.addEventListener("mousedown", (e) => e.stopPropagation());
+
+    // 拖动：按住标题栏移动浮窗（点在复制/关闭按钮上时不触发）
+    panel
+      .querySelector(".lingo-panel-header")
+      .addEventListener("mousedown", (e) => {
+        if (e.target.closest(".lingo-icon-btn")) return;
+        e.preventDefault();
+        const offsetX = e.clientX - panel.offsetLeft;
+        const offsetY = e.clientY - panel.offsetTop;
+        const onMove = (ev) => {
+          const left = Math.min(
+            Math.max(0, ev.clientX - offsetX),
+            window.innerWidth - 60
+          );
+          const top = Math.min(
+            Math.max(0, ev.clientY - offsetY),
+            window.innerHeight - 40
+          );
+          panel.style.left = `${left}px`;
+          panel.style.top = `${top}px`;
+        };
+        const onUp = () => {
+          document.removeEventListener("mousemove", onMove, true);
+          document.removeEventListener("mouseup", onUp, true);
+        };
+        document.addEventListener("mousemove", onMove, true);
+        document.addEventListener("mouseup", onUp, true);
+      });
+
+    // 调整大小：拖动右/下边缘或右下角
+    panel.querySelectorAll(".lingo-resize").forEach((handle) => {
+      handle.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const dir = handle.dataset.dir;
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startW = panel.offsetWidth;
+        const startH = panel.offsetHeight;
+        panel.style.maxHeight = "none"; // 允许拖过默认最大高度
+        const onMove = (ev) => {
+          if (dir.includes("e")) {
+            const w = Math.min(
+              Math.max(280, startW + ev.clientX - startX),
+              window.innerWidth - panel.offsetLeft - 10
+            );
+            panel.style.width = `${w}px`;
+          }
+          if (dir.includes("s")) {
+            const h = Math.min(
+              Math.max(160, startH + ev.clientY - startY),
+              window.innerHeight - panel.offsetTop - 10
+            );
+            panel.style.height = `${h}px`;
+          }
+        };
+        const onUp = () => {
+          document.removeEventListener("mousemove", onMove, true);
+          document.removeEventListener("mouseup", onUp, true);
+        };
+        document.addEventListener("mousemove", onMove, true);
+        document.addEventListener("mouseup", onUp, true);
+      });
+    });
   }
 
   function openPanel(selection, context) {
