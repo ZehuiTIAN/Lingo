@@ -190,10 +190,13 @@
 
     panelBody = panel.querySelector(".lingo-panel-body");
     // 用户手动滚动时记录是否停在底部：只有贴着底部才跟随新内容自动下滚
+    // scrollTop > 0 是必要条件——scroll 事件是异步派发的，openPanel 重置
+    // scrollTop=0 后事件才到达，此时空内容"距离底部"为 0，不能把贴底标志翻回 true
     panelBody.addEventListener("scroll", () => {
       stickToBottom =
+        panelBody.scrollTop > 0 &&
         panelBody.scrollHeight - panelBody.scrollTop - panelBody.clientHeight <
-        24;
+          24;
     });
     panel.querySelector(".lingo-close").addEventListener("click", closePanel);
     panel.querySelector(".lingo-copy").addEventListener("click", () => {
@@ -223,6 +226,7 @@
           );
           panel.style.left = `${left}px`;
           panel.style.top = `${top}px`;
+          clampPanelToViewport(); // 位置变了，可用高度也跟着变
         };
         const onUp = () => {
           document.removeEventListener("mousemove", onMove, true);
@@ -242,7 +246,6 @@
         const startY = e.clientY;
         const startW = panel.offsetWidth;
         const startH = panel.offsetHeight;
-        panel.style.maxHeight = "none"; // 允许拖过默认最大高度
         const onMove = (ev) => {
           if (dir.includes("e")) {
             const w = Math.min(
@@ -267,6 +270,9 @@
         document.addEventListener("mouseup", onUp, true);
       });
     });
+
+    // 浏览器窗口缩小时，重新夹紧浮窗高度
+    window.addEventListener("resize", clampPanelToViewport);
   }
 
   function openPanel(selection, context) {
@@ -282,6 +288,7 @@
     setStatus("思考中…");
 
     // 定位：跟随当前选区，否则居中
+    panel.style.display = "flex"; // 先显示，positionPanel 才能量到真实尺寸
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0 && sel.toString().trim()) {
       const rect = sel.getRangeAt(0).getBoundingClientRect();
@@ -290,7 +297,7 @@
       panel.style.top = "80px";
       panel.style.left = `${Math.max(16, (window.innerWidth - panel.offsetWidth) / 2)}px`;
     }
-    panel.style.display = "flex";
+    clampPanelToViewport();
 
     // 发起查询（先确认扩展上下文还活着）
     if (!contextAlive()) {
@@ -338,15 +345,23 @@
   }
 
   function positionPanel(rect) {
-    const PANEL_W = 420;
     let top = rect.bottom + 10;
     let left = rect.left;
-    if (top + 300 > window.innerHeight) {
-      top = Math.max(10, rect.top - 310); // 下方放不下就放上方
+    const height = panel.offsetHeight || 300; // 首次打开还没渲染，用估算值
+    const width = panel.offsetWidth || 420;
+    if (top + height > window.innerHeight) {
+      top = Math.max(10, rect.top - height - 10); // 下方放不下就放上方
     }
-    left = Math.min(Math.max(10, left), window.innerWidth - PANEL_W - 10);
+    left = Math.min(Math.max(10, left), window.innerWidth - width - 10);
     panel.style.top = `${top}px`;
     panel.style.left = `${left}px`;
+  }
+
+  // 根据浮窗当前 top 动态限制 max-height，保证浮窗底部永远不会超出视口
+  function clampPanelToViewport() {
+    if (!panel) return;
+    const available = window.innerHeight - panel.offsetTop - 10;
+    panel.style.maxHeight = `${Math.max(160, available)}px`;
   }
 
   function setStatus(text) {
