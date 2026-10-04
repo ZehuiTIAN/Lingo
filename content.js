@@ -8,6 +8,7 @@
   let askButton = null;
   let panel = null;
   let panelBody = null;
+  let stickToBottom = false;
   let currentPort = null;
   let lastAnswer = "";
 
@@ -185,6 +186,12 @@
     document.documentElement.appendChild(panel);
 
     panelBody = panel.querySelector(".lingo-panel-body");
+    // 用户手动滚动时记录是否停在底部：只有贴着底部才跟随新内容自动下滚
+    panelBody.addEventListener("scroll", () => {
+      stickToBottom =
+        panelBody.scrollHeight - panelBody.scrollTop - panelBody.clientHeight <
+        24;
+    });
     panel.querySelector(".lingo-close").addEventListener("click", closePanel);
     panel.querySelector(".lingo-copy").addEventListener("click", () => {
       navigator.clipboard.writeText(lastAnswer).catch(() => {});
@@ -203,6 +210,8 @@
       selection.length > 40 ? `${selection.slice(0, 40)}…` : selection;
     panel.querySelector(".lingo-panel-title").title = selection;
     panelBody.textContent = "";
+    panelBody.scrollTop = 0;
+    stickToBottom = false;
     setStatus("思考中…");
 
     // 定位：跟随当前选区，否则居中
@@ -242,7 +251,9 @@
         renderMs += performance.now() - r0;
         renderCount++;
         setStatus("");
-        panelBody.scrollTop = panelBody.scrollHeight;
+        if (stickToBottom) {
+          panelBody.scrollTop = panelBody.scrollHeight;
+        }
       } else if (msg.type === "done") {
         setStatus(answer ? formatStats(msg.stats) : "（没有收到内容）");
         console.log(
