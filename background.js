@@ -1,48 +1,57 @@
 // Lingo background service worker
-// 职责：右键菜单 + 代理所有 API 请求（content script 直接请求会有 CORS 和暴露 key 的问题）
+// 职责：右键菜单（每个 profile 一个入口） + 代理所有 API 请求（content script 直接请求会有 CORS 和暴露 key 的问题）
+
+importScripts("profiles.js");
 
 const DEFAULTS = {
   baseUrl: "https://api.openai.com/v1",
   model: "gpt-4o-mini",
-  systemPrompt: [
-    "You are a context-aware language learning assistant.",
-    "",
-    "Always answer primarily in Simplified Chinese, regardless of the language of the selected text. Preserve the original expression when explaining it, and use the target language for examples, pronunciation, or comparisons when useful.",
-    "",
-    "When I select a word, phrase, sentence, or passage from a webpage, explain it based on its specific context rather than giving only a dictionary definition.",
-    "",
-    "Focus on:",
-    "- what it naturally means here;",
-    "- its nuance, tone, register, and implied meaning;",
-    "- why this wording or grammar is used;",
-    "- any cultural, technical, idiomatic, or contextual background needed to understand it;",
-    "- 2–3 short, natural examples when useful.",
-    "",
-    "If I select a full sentence, explain the overall meaning first, then break down only the parts that are likely to be difficult.",
-    "",
-    "If pronunciation is useful, include an appropriate pronunciation guide for that language, such as IPA, kana, pinyin, or another standard system.",
-    "",
-    "If the expression has several meanings, prioritize the meaning that fits the webpage context and mention alternatives only when useful.",
-    "",
-    "Do not mechanically translate word by word or give a long dictionary-style entry. Be concise, practical, and adapted to a language learner.",
-  ].join("\n"),
 };
+
+const MENU_PREFIX = "lingo-ask:";
 
 // ---- 右键菜单 ----
 
+async function rebuildMenus() {
+  const { profiles } = await LingoProfiles.load();
+  await chrome.contextMenus.removeAll();
+  for (const p of profiles) {
+    chrome.contextMenus.create({
+      id: `${MENU_PREFIX}${p.id}`,
+      title: `问 Lingo：${p.name}`,
+      contexts: ["selection"],
+    });
+  }
+}
+
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.contextMenus.create({
-    id: "lingo-ask",
-    title: "问 Lingo：解释这段英文",
-    contexts: ["selection"],
-  });
+  void rebuildMenus();
+});
+
+// service worker 重启后菜单还在，但 onStartup 重建一次作为自愈
+chrome.runtime.onStartup.addListener(() => {
+  void rebuildMenus();
+});
+
+// 设置页增删/改名 profile 后即时重建菜单
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && (changes.profiles || changes.defaultProfileId)) {
+    void rebuildMenus();
+  }
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
-  if (info.menuItemId !== "lingo-ask" || tab?.id == null) return;
+  if (
+    typeof info.menuItemId !== "string" ||
+    !info.menuItemId.startsWith(MENU_PREFIX) ||
+    tab?.id == null
+  ) {
+    return;
+  }
   const tabId = tab.id;
+  const profileId = info.menuItemId.slice(MENU_PREFIX.length);
 
-  chrome.tabs.sendMessage(tabId, { type: "lingo:open" }, async () => {
+  chrome.tabs.sendMessage(tabId, { type: "lingo:open", profileId }, async () => {
     if (!chrome.runtime.lastError) return; // content script 正常响应
 
     // content script 不在（页面先于插件安装/重载打开），现场注入再重试
@@ -53,9 +62,9 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       });
       await chrome.scripting.executeScript({
         target: { tabId },
-        files: ["content.js"],
+        files: ["profiles.js", "content.js"],
       });
-      chrome.tabs.sendMessage(tabId, { type: "lingo:open" }, () => {
+      chrome.tabs.sendMessage(tabId, { type: "lingo:open", profileId }, () => {
         void chrome.runtime.lastError;
       });
     } catch {
@@ -95,9 +104,16 @@ async function handleQuery(port, payload, signal) {
     "baseUrl",
     "apiKey",
     "model",
-    "systemPrompt",
     "thinking",
   ]);
+
+  // profile 决定本次提问用哪套 system prompt（过期 id 兜底到默认）
+  const { profiles, defaultProfileId } = await LingoProfiles.load();
+  const profile = LingoProfiles.pick(profiles, defaultProfileId, payload?.profileId);
+  const systemPrompt =
+    profile.systemPrompt ||
+    LingoProfiles.presetById(profile.id)?.systemPrompt ||
+    "";
 
   const t1 = performance.now(); // 配置读取完成
 
@@ -126,7 +142,7 @@ async function handleQuery(port, payload, signal) {
         model: cfg.model || DEFAULTS.model,
         stream: true,
         messages: [
-          { role: "system", content: cfg.systemPrompt || DEFAULTS.systemPrompt },
+          { role: "system", content: systemPrompt },
           { role: "user", content: userMessage },
         ],
         // 思考模式（DeepSeek 等推理模型专用）：low → reasoning_effort，off → thinking disabled
