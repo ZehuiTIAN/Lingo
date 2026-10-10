@@ -69,7 +69,6 @@ options.html/js 设置页（Base URL / API Key / 模型 / System Prompt）
 
 ## 后续可能的扩展
 
-- Markdown 渲染回答
 - 浮窗内多轮追问
 - 生词本（保存问过的表达）
 - Safari 版本（可先用 `xcrun safari-web-extension-converter` 转换试试）

@@ -5,6 +5,8 @@
   if (window.__lingoLoaded) return;
   window.__lingoLoaded = true;
 
+  let askGroup = null;
+  let profilesCache = null; // { profiles, defaultProfileId }，storage 变更后失效
   let askButton = null;
   let panel = null;
   let panelBody = null;
