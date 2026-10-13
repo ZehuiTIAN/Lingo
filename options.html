@@ -95,6 +95,12 @@
     <span id="testResult"></span>
   </div>
 
+  <label for="profile">
+    编辑哪个 Profile
+    <span class="hint">对应右键菜单里的「问 Lingo：xxx」入口；切换不会丢失未保存的修改</span>
+  </label>
+  <select id="profile"></select>
+
   <label for="systemPrompt">
     System Prompt
     <span class="hint">决定 AI 的回答风格——把它改成你习惯的回答格式</span>
@@ -103,10 +109,11 @@
 
   <div class="row">
     <button id="save">保存</button>
-    <button id="resetPrompt" class="secondary" type="button">恢复默认 Prompt</button>
+    <button id="resetPrompt" class="secondary" type="button">恢复该 Profile 的默认 Prompt</button>
     <span id="status"></span>
   </div>
 
+  <script src="profiles.js"></script>
   <script src="options.js"></script>
 </body>
 </html>

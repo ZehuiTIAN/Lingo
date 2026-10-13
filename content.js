@@ -277,7 +277,7 @@
     window.addEventListener("resize", clampPanelToViewport);
   }
 
-  function openPanel(selection, context) {
+  function openPanel(selection, context, profileId) {
     ensurePanel();
     closeCurrentPort();
 
@@ -343,7 +343,7 @@
     currentPort.onDisconnect.addListener(() => {
       currentPort = null;
     });
-    currentPort.postMessage({ type: "query", payload: { selection, context } });
+    currentPort.postMessage({ type: "query", payload: { selection, context, profileId } });
   }
 
   function positionPanel(rect) {
@@ -445,12 +445,12 @@
     }
   });
 
-  // 右键菜单触发
+  // 右键菜单触发（profileId 决定用哪套 system prompt；浮动按钮不传，走默认 profile）
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg?.type === "lingo:open") {
       const sel = window.getSelection();
       if (sel && sel.toString().trim()) {
-        openPanel(sel.toString().trim(), getContext(sel));
+        openPanel(sel.toString().trim(), getContext(sel), msg.profileId);
         hideButton();
       }
     }
